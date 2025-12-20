@@ -3,7 +3,7 @@ use cosmic::iced::time::{self, Duration, Instant};
 use cosmic::iced::window;
 use cosmic::iced::Subscription;
 use cosmic::iced_runtime::core::layout::Limits;
-use cosmic::widget::{self, button, container, divider, text, Column};
+use cosmic::widget::{self, button, container, divider, icon, text, Column};
 use cosmic::{Application, Element};
 use std::process::Command;
 
@@ -11,6 +11,11 @@ use crate::state::{detect_state, DictationState};
 
 const APP_ID: &str = "com.digunix.CosmicAppletNerdDictation";
 const POLL_INTERVAL_MS: u64 = 1000;
+
+// Embed SVG icons directly in the binary
+const ICON_RED: &[u8] = include_bytes!("../resources/icons/microphone-red-symbolic.svg");
+const ICON_GREEN: &[u8] = include_bytes!("../resources/icons/microphone-green-symbolic.svg");
+const ICON_YELLOW: &[u8] = include_bytes!("../resources/icons/microphone-yellow-symbolic.svg");
 
 pub struct Window {
     core: Core,
@@ -28,6 +33,16 @@ pub enum Message {
     Stop,
     Suspend,
     Resume,
+}
+
+impl Window {
+    fn get_icon_bytes(&self) -> &'static [u8] {
+        match self.state {
+            DictationState::Stopped => ICON_RED,
+            DictationState::Active => ICON_GREEN,
+            DictationState::Suspended => ICON_YELLOW,
+        }
+    }
 }
 
 impl Application for Window {
@@ -158,9 +173,15 @@ impl Application for Window {
     }
 
     fn view(&self) -> Element<Message> {
-        self.core
-            .applet
-            .icon_button(self.state.icon_name())
+        let icon_handle = icon::from_svg_bytes(self.get_icon_bytes());
+        let suggested_size = self.core.applet.suggested_size(false);
+        let icon_widget = icon::icon(icon_handle)
+            .size(suggested_size.0.min(suggested_size.1));
+
+        let padding = self.core.applet.suggested_padding(false);
+        widget::button::custom(icon_widget)
+            .padding([padding.0, padding.1])
+            .class(cosmic::theme::Button::AppletIcon)
             .on_press_down(Message::TogglePopup)
             .into()
     }

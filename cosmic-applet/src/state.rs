@@ -11,15 +11,6 @@ pub enum DictationState {
 }
 
 impl DictationState {
-    /// Returns the icon name for this state
-    pub fn icon_name(&self) -> &'static str {
-        match self {
-            DictationState::Stopped => "microphone-red-symbolic",
-            DictationState::Active => "microphone-green-symbolic",
-            DictationState::Suspended => "microphone-yellow-symbolic",
-        }
-    }
-
     /// Returns a human-readable status string
     pub fn status_text(&self) -> &'static str {
         match self {
