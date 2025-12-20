@@ -5,7 +5,7 @@ A Nix flake for [nerd-dictation](https://github.com/ideasman42/nerd-dictation), 
 ## Credits
 
 - **[nerd-dictation](https://github.com/ideasman42/nerd-dictation)** by Campbell Barton ([@ideasman42](https://github.com/ideasman42)) - The upstream speech-to-text tool this flake packages
-- **Original Nix flake** by Fabrice Claeys - Created the initial French version of this Nix flake with NixOS and Home Manager modules
+- **[Original Nix flake](https://github.com/fclaeys/nix-nerd-dictation)** by Fabrice Claeys ([@fclaeys](https://github.com/fclaeys)) - Created the initial French version of this Nix flake with NixOS and Home Manager modules
 
 ## Features
 
@@ -344,6 +344,3 @@ def nerd_dictation_process(text):
     return text
 ```
 
-## License
-
-GPL-3.0-or-later (same as nerd-dictation)
