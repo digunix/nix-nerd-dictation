@@ -4,10 +4,13 @@ with lib;
 
 let
   cfg = config.programs.nerd-dictation;
-  
+
   nerd-dictation = pkgs.callPackage ./package.nix { };
-  
+
   configFile = pkgs.writeText "nerd-dictation.py" cfg.configScript;
+
+  # Check if using uinput-based backend
+  usesUinput = cfg.inputBackend == "dotool" || cfg.inputBackend == "dotoolc" || cfg.inputBackend == "ydotool";
 in
 
 {
@@ -27,15 +30,27 @@ in
     };
 
     inputBackend = mkOption {
-      type = types.enum [ "xdotool" "ydotool" "dotool" "wtype" ];
-      default = "xdotool";
-      description = "Input simulation backend to use";
+      type = types.enum [ "xdotool" "ydotool" "dotool" "dotoolc" "wtype" ];
+      default = "dotool";
+      description = ''
+        Input simulation backend to use.
+        - dotool: Recommended for Wayland/COSMIC, uses uinput kernel module
+        - dotoolc: Same as dotool but uses the dotoold daemon
+        - wtype: Works on wlroots-based compositors (Sway, etc.)
+        - ydotool: Alternative uinput-based tool, requires daemon
+        - xdotool: X11 only
+
+        Note: dotool/dotoolc/ydotool require uinput kernel module and user in 'input' group.
+        Add to your NixOS config:
+          hardware.uinput.enable = true;
+          users.users.youruser.extraGroups = [ "input" ];
+      '';
     };
 
     modelPath = mkOption {
       type = types.nullOr types.str;
       default = null;
-      description = "Path to the VOSK language model";
+      description = "Path to the VOSK language model. Leave null to use bundled English model.";
     };
 
     configScript = mkOption {
@@ -45,10 +60,10 @@ in
       example = ''
         # Custom nerd-dictation configuration
         import re
-        
-        def text_replace_function(text):
-            text = text.replace("new line", "\n")
-            text = text.replace("tab", "\t")
+
+        def nerd_dictation_process(text):
+            text = text.replace(" new line", "\n")
+            text = text.replace(" tab", "\t")
             return text
       '';
     };
@@ -73,15 +88,16 @@ in
 
     keyBindings = mkOption {
       type = types.attrsOf types.str;
-      default = {
+      default = { };
+      description = ''
+        Key bindings for nerd-dictation commands.
+        These are applied to i3/sway if enabled.
+        For COSMIC desktop, configure shortcuts in Settings > Keyboard > Keyboard Shortcuts.
+      '';
+      example = {
         "ctrl+alt+d" = "nerd-dictation begin";
         "ctrl+alt+shift+d" = "nerd-dictation end";
-      };
-      description = "Key bindings for nerd-dictation commands";
-      example = {
-        "super+d" = "nerd-dictation begin";
-        "super+shift+d" = "nerd-dictation end";
-        "super+ctrl+d" = "nerd-dictation suspend";
+        "ctrl+alt+s" = "nerd-dictation suspend";
       };
     };
 
@@ -98,14 +114,12 @@ in
       (mkIf (cfg.audioBackend == "parec") pulseaudio)
       (mkIf (cfg.audioBackend == "sox") sox)
       (mkIf (cfg.audioBackend == "pw-cat") pipewire)
-      
+
       # Input backends
       (mkIf (cfg.inputBackend == "xdotool") xdotool)
       (mkIf (cfg.inputBackend == "ydotool") ydotool)
-      (mkIf (cfg.inputBackend == "dotool") dotool)
+      (mkIf (cfg.inputBackend == "dotool" || cfg.inputBackend == "dotoolc") dotool)
       (mkIf (cfg.inputBackend == "wtype") wtype)
-      
-      # VOSK is now included in the package
     ]);
 
     # Create config directory and file
@@ -127,12 +141,12 @@ in
 
       Service = {
         Type = "forking";
-        ExecStart = "${cfg.package}/bin/nerd-dictation begin --timeout=${toString cfg.timeout} --idle-time=${toString cfg.idleTime}${optionalString cfg.convertNumbers " --numbers-as-digits"}";
+        ExecStart = "${cfg.package}/bin/nerd-dictation begin --simulate-input-tool=${lib.toUpper cfg.inputBackend} --timeout=${toString cfg.timeout} --idle-time=${toString cfg.idleTime}${optionalString cfg.convertNumbers " --numbers-as-digits"}";
         ExecStop = "${cfg.package}/bin/nerd-dictation end";
         ExecReload = "${cfg.package}/bin/nerd-dictation suspend";
         Restart = "on-failure";
         RestartSec = 5;
-        
+
         Environment = optional (cfg.modelPath != null) "NERD_DICTATION_MODEL=${cfg.modelPath}";
       };
 
@@ -145,7 +159,7 @@ in
     home.file.".local/bin/nerd-dictation-begin" = {
       text = ''
         #!/bin/sh
-        ${cfg.package}/bin/nerd-dictation begin --timeout=${toString cfg.timeout} --idle-time=${toString cfg.idleTime}${optionalString cfg.convertNumbers " --numbers-as-digits"}
+        ${cfg.package}/bin/nerd-dictation begin --simulate-input-tool=${lib.toUpper cfg.inputBackend} --timeout=${toString cfg.timeout} --idle-time=${toString cfg.idleTime}${optionalString cfg.convertNumbers " --numbers-as-digits"}
       '';
       executable = true;
     };
@@ -186,10 +200,18 @@ in
     };
 
     # Key bindings for i3/sway (if enabled)
-    wayland.windowManager.sway.config.keybindings = mkIf (config.wayland.windowManager.sway.enable && cfg.keyBindings != {}) 
+    wayland.windowManager.sway.config.keybindings = mkIf (config.wayland.windowManager.sway.enable && cfg.keyBindings != {})
       (mapAttrs (key: cmd: "exec ${cmd}") cfg.keyBindings);
 
     xsession.windowManager.i3.config.keybindings = mkIf (config.xsession.windowManager.i3.enable && cfg.keyBindings != {})
       (mapAttrs (key: cmd: "exec ${cmd}") cfg.keyBindings);
+
+    # Warning for uinput-based backends
+    warnings = optional usesUinput ''
+      nerd-dictation: You are using ${cfg.inputBackend} which requires uinput.
+      Ensure your NixOS configuration includes:
+        hardware.uinput.enable = true;
+        users.users.${config.home.username}.extraGroups = [ "input" ];
+    '';
   };
 }

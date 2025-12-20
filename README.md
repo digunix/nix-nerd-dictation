@@ -1,132 +1,349 @@
 # nerd-dictation Nix Flake
 
-> **⚠️ WORK IN PROGRESS / TRAVAIL EN COURS**
-> 
-> **🇬🇧 This project is currently a work in progress and only functions under specific conditions:**
-> - ✅ Tested on Linux with Wayland (COSMIC DE)
-> - ✅ Works with PulseAudio/PipeWire audio systems
-> - ⚠️ May require audio system configuration
-> - ⚠️ Microphone permissions needed
-> - 🇫🇷 Currently optimized for French language only
-> 
-> **🇫🇷 Ce projet est actuellement en cours de développement et ne fonctionne que dans certaines conditions :**
-> - ✅ Testé sur Linux avec Wayland (COSMIC DE)
-> - ✅ Fonctionne avec les systèmes audio PulseAudio/PipeWire
-> - ⚠️ Peut nécessiter une configuration du système audio
-> - ⚠️ Permissions microphone requises
-> - 🇫🇷 Actuellement optimisé pour le français uniquement
+A Nix flake for [nerd-dictation](https://github.com/ideasman42/nerd-dictation), an offline speech-to-text tool.
 
-Ce flake Nix fournit un package et des modules NixOS/Home Manager pour [nerd-dictation](https://github.com/ideasman42/nerd-dictation), un outil de dictée vocale hors ligne.
+## Credits
 
-## ✅ Installation complètement automatisée
+- **[nerd-dictation](https://github.com/ideasman42/nerd-dictation)** by Campbell Barton ([@ideasman42](https://github.com/ideasman42)) - The upstream speech-to-text tool this flake packages
+- **Original Nix flake** by Fabrice Claeys - Created the initial French version of this Nix flake with NixOS and Home Manager modules
 
-VOSK et le modèle français sont maintenant inclus automatiquement dans le package ! 
+## Features
 
-- ✅ VOSK 0.3.45 inclus
-- ✅ Modèle français `vosk-model-small-fr-0.22` inclus
-- 🎯 **Détection automatique Wayland/X11** pour l'injection de texte
-- 🇫🇷 **Configuration française automatique** avec ponctuation
-- 🚀 Prêt à l'emploi sans configuration
+- VOSK 0.3.45 included
+- US English model `vosk-model-small-en-us-0.15` bundled
+- **Automatic Wayland/X11 detection** for text input
+- **COSMIC desktop support** via dotool
+- **English configuration** with punctuation and symbols
+- Ready to use with no additional setup
 
-## Utilisation
-
-### Package seul
+## Quick Start
 
 ```bash
-nix run github:votre-utilisateur/nix-nerd-dictation
+nix run github:digunix/nix-nerd-dictation
 ```
 
-### Module NixOS
+## NixOS Configuration
+
+### Flake Setup
+
+Add the flake to your `flake.nix` inputs:
 
 ```nix
 {
-  inputs.nerd-dictation.url = "github:votre-utilisateur/nix-nerd-dictation";
-  
-  imports = [ inputs.nerd-dictation.nixosModules.default ];
-  
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nerd-dictation.url = "github:digunix/nix-nerd-dictation";
+  };
+
+  outputs = { self, nixpkgs, nerd-dictation, ... }: {
+    nixosConfigurations.myhost = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        ./configuration.nix
+        nerd-dictation.nixosModules.default
+      ];
+    };
+  };
+}
+```
+
+### Complete NixOS Configuration Example
+
+Add to your `configuration.nix`:
+
+```nix
+{ config, pkgs, ... }:
+
+{
+  # Enable nerd-dictation service
   services.nerd-dictation = {
     enable = true;
-    modelPath = "/path/to/vosk-model";
-    audioBackend = "parec";  # ou "sox", "pw-cat"
-    inputBackend = "xdotool"; # ou "ydotool", "dotool", "wtype"
-    configScript = ''
-      def text_replace_function(text):
-        text = text.replace("new line", "\n")
-        text = text.replace("tab", "\t")
-        return text
-    '';
+    inputBackend = "dotool";  # Recommended for Wayland/COSMIC
+    audioBackend = "parec";   # Works with PulseAudio/PipeWire
+  };
+
+  # Required for dotool to work (automatically enabled by the module)
+  hardware.uinput.enable = true;
+
+  # Add your user to required groups
+  users.users.youruser = {
+    extraGroups = [ "audio" "input" ];
+  };
+
+  # If using PipeWire (recommended)
+  services.pipewire = {
+    enable = true;
+    alsa.enable = true;
+    pulse.enable = true;
   };
 }
 ```
 
-### Module Home Manager
+### Standalone Package (without service)
+
+If you just want the package without the systemd service:
+
+```nix
+{ config, pkgs, nerd-dictation, ... }:
+
+{
+  environment.systemPackages = [
+    nerd-dictation.packages.${pkgs.system}.default
+  ];
+
+  # Still needed for dotool
+  hardware.uinput.enable = true;
+  users.users.youruser.extraGroups = [ "audio" "input" ];
+}
+```
+
+## Home Manager Configuration
+
+### With Flake
 
 ```nix
 {
-  imports = [ inputs.nerd-dictation.homeManagerModules.default ];
-  
-  programs.nerd-dictation = {
-    enable = true;
-    modelPath = "/home/user/.local/share/vosk-model";
-    keyBindings = {
-      "super+d" = "nerd-dictation begin";
-      "super+shift+d" = "nerd-dictation end";
-      "super+ctrl+d" = "nerd-dictation suspend";
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    home-manager.url = "github:nix-community/home-manager";
+    nerd-dictation.url = "github:digunix/nix-nerd-dictation";
+  };
+
+  outputs = { self, nixpkgs, home-manager, nerd-dictation, ... }: {
+    homeConfigurations.youruser = home-manager.lib.homeManagerConfiguration {
+      pkgs = nixpkgs.legacyPackages.x86_64-linux;
+      modules = [
+        nerd-dictation.homeManagerModules.default
+        {
+          programs.nerd-dictation = {
+            enable = true;
+            inputBackend = "dotool";
+            enableSystemdService = true;
+
+            # Key bindings for i3/sway (optional)
+            keyBindings = {
+              "ctrl+alt+d" = "nerd-dictation begin";
+              "ctrl+alt+shift+d" = "nerd-dictation end";
+            };
+          };
+        }
+      ];
     };
-    enableSystemdService = true;
   };
 }
 ```
 
-## Configuration
-
-### Options principales
-
-- `modelPath` : Chemin vers le modèle VOSK
-- `audioBackend` : Backend audio (`parec`, `sox`, `pw-cat`)
-- `inputBackend` : Backend d'entrée (`xdotool`, `ydotool`, `dotool`, `wtype`)
-- `configScript` : Script Python de configuration personnalisé
-- `timeout` : Timeout en millisecondes pour la reconnaissance vocale
-- `idleTime` : Temps d'inactivité avant l'arrêt de l'enregistrement
-- `convertNumbers` : Convertir les mots nombres en chiffres
-
-### Détection automatique de l'environnement
-
-Le package détecte automatiquement votre environnement graphique :
-- **Wayland** (COSMIC, GNOME, Sway, etc.) → utilise `wtype`
-- **X11** (i3, XFCE, etc.) → utilise `xdotool`
-
-### Configuration française automatique
-
-Au premier lancement, une configuration française est automatiquement créée dans `~/.config/nerd-dictation/nerd-dictation.py` qui inclut :
-
-- **Ponctuation** : "virgule" → `,`, "point d'interrogation" → ` ?`, etc.
-- **Symboles** : "arobase" → `@`, "pourcentage" → `%`, "plus" → `+`, etc.
-- **Navigation** : "nouvelle ligne" → retour à la ligne, "tabulation" → tab
-
-#### Exemples de dictée :
-- "Bonjour virgule comment allez-vous point d'interrogation" → "Bonjour, comment allez-vous ?"
-- "Mon email arobase exemple point com" → "Mon email @exemple.com"
-- "Quarante-deux pour cent" → "42%"
-
-### Raccourcis clavier (Home Manager)
-
-Le module Home Manager peut configurer automatiquement les raccourcis clavier pour i3 et sway :
+**Note:** Home Manager users still need the NixOS-level configuration for uinput:
 
 ```nix
-programs.nerd-dictation.keyBindings = {
-  "ctrl+alt+d" = "nerd-dictation begin";
-  "ctrl+alt+shift+d" = "nerd-dictation end";
-};
+# In your NixOS configuration.nix
+hardware.uinput.enable = true;
+users.users.youruser.extraGroups = [ "input" ];
 ```
 
-### Service systemd
+## COSMIC Desktop Setup
 
-Le module NixOS crée un service système, tandis que le module Home Manager peut créer un service utilisateur optionnel.
+For COSMIC desktop, the package automatically uses `dotool` which works via the uinput kernel module.
 
-## Alias shell
+### Required NixOS Configuration
 
-Le module Home Manager ajoute automatiquement des alias pratiques :
-- `nd-begin` : Démarrer la dictée
-- `nd-end` : Arrêter la dictée  
-- `nd-suspend` : Suspendre/reprendre la dictée
+```nix
+{
+  # Enable COSMIC desktop
+  services.desktopManager.cosmic.enable = true;
+  services.displayManager.cosmic-greeter.enable = true;
+
+  # Enable uinput for dotool
+  hardware.uinput.enable = true;
+
+  # User permissions
+  users.users.youruser.extraGroups = [ "audio" "input" ];
+
+  # PipeWire for audio (COSMIC default)
+  services.pipewire = {
+    enable = true;
+    alsa.enable = true;
+    pulse.enable = true;
+  };
+}
+```
+
+### Keyboard Shortcuts
+
+Configure in **COSMIC Settings > Keyboard > Keyboard Shortcuts**:
+
+| Action | Command |
+|--------|---------|
+| Start dictation | `nerd-dictation begin` |
+| Stop dictation | `nerd-dictation end` |
+| Toggle pause | `nerd-dictation suspend` |
+
+## Configuration Reference
+
+### Input Backends
+
+| Backend | Environment | Notes |
+|---------|-------------|-------|
+| `dotool` | Wayland/X11/COSMIC | **Recommended.** Uses uinput, works everywhere |
+| `dotoolc` | Wayland/X11/COSMIC | Same as dotool, uses daemon for better performance |
+| `wtype` | Wayland (wlroots) | Works on Sway, may not work on COSMIC |
+| `ydotool` | Wayland/X11 | Alternative to dotool, requires daemon |
+| `xdotool` | X11 only | Classic X11 tool |
+
+### Audio Backends
+
+| Backend | Description |
+|---------|-------------|
+| `parec` | PulseAudio/PipeWire (default) |
+| `sox` | SoX audio tools |
+| `pw-cat` | PipeWire native |
+
+### Module Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `inputBackend` | `dotool` | Input simulation tool |
+| `audioBackend` | `parec` | Audio recording tool |
+| `modelPath` | (bundled) | Custom VOSK model path |
+| `configScript` | (bundled) | Custom Python config |
+| `timeout` | 1000 | Recognition timeout (ms) |
+| `idleTime` | 500 | Idle time before stop (ms) |
+| `convertNumbers` | false | Convert words to digits |
+
+## Voice Commands
+
+The bundled English configuration supports these spoken commands:
+
+### Punctuation
+| Say | Output |
+|-----|--------|
+| "comma" | `,` |
+| "period" / "full stop" | `.` |
+| "question mark" | `?` |
+| "exclamation mark" | `!` |
+| "colon" | `:` |
+| "semicolon" | `;` |
+| "ellipsis" | `...` |
+
+### Navigation
+| Say | Output |
+|-----|--------|
+| "new line" | newline |
+| "new paragraph" | double newline |
+| "tab" | tab character |
+
+### Brackets & Quotes
+| Say | Output |
+|-----|--------|
+| "open paren" / "close paren" | `(` `)` |
+| "open bracket" / "close bracket" | `[` `]` |
+| "open brace" / "close brace" | `{` `}` |
+| "open quote" / "close quote" | `"` |
+
+### Symbols
+| Say | Output |
+|-----|--------|
+| "at sign" | `@` |
+| "hash" / "hashtag" | `#` |
+| "dollar" | `$` |
+| "percent" | `%` |
+| "ampersand" | `&` |
+| "asterisk" / "star" | `*` |
+| "plus" | `+` |
+| "equals" | `=` |
+| "slash" | `/` |
+| "backslash" | `\` |
+
+### Programming
+| Say | Output |
+|-----|--------|
+| "arrow" | `->` |
+| "fat arrow" | `=>` |
+| "double equals" | `==` |
+| "triple equals" | `===` |
+| "not equals" | `!=` |
+| "plus plus" | `++` |
+| "minus minus" | `--` |
+
+## Shell Aliases
+
+The Home Manager module adds these aliases (bash/zsh/fish):
+
+- `nd-begin` - Start dictation
+- `nd-end` - Stop dictation
+- `nd-suspend` - Toggle pause
+
+## Troubleshooting
+
+### dotool not working
+
+1. Verify uinput is enabled:
+   ```bash
+   ls -la /dev/uinput
+   ```
+
+2. Check group membership:
+   ```bash
+   groups  # Should include 'input'
+   ```
+
+3. If recently changed, log out and back in or reboot
+
+4. Check uinput module is loaded:
+   ```bash
+   lsmod | grep uinput
+   ```
+
+### No audio input
+
+1. List available sources:
+   ```bash
+   pactl list sources short
+   ```
+
+2. Test recording:
+   ```bash
+   parec --channels=1 --rate=16000 test.raw
+   ```
+
+3. Check PipeWire/PulseAudio is running:
+   ```bash
+   systemctl --user status pipewire pipewire-pulse
+   ```
+
+### COSMIC: text not appearing
+
+COSMIC has security measures against input spoofing. Ensure:
+
+1. Using `dotool` (not `wtype`)
+2. uinput is properly configured
+3. User is in `input` group
+4. Logged out and back in after group changes
+
+### Model not loading
+
+Check the model path:
+```bash
+nerd-dictation begin --vosk-model-dir=/path/to/model
+```
+
+## Custom Configuration
+
+Create `~/.config/nerd-dictation/nerd-dictation.py` to customize text processing:
+
+```python
+def nerd_dictation_process(text):
+    # Add custom replacements
+    text = text.replace(" my email", "user@example.com")
+    text = text.replace(" my phone", "555-1234")
+
+    # Call default processing (optional)
+    # from default_config import nerd_dictation_process as default
+    # text = default(text)
+
+    return text
+```
+
+## License
+
+GPL-3.0-or-later (same as nerd-dictation)

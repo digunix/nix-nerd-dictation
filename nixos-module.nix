@@ -4,9 +4,9 @@ with lib;
 
 let
   cfg = config.services.nerd-dictation;
-  
+
   nerd-dictation = pkgs.callPackage ./package.nix { };
-  
+
   configFile = pkgs.writeText "nerd-dictation.py" cfg.configScript;
 in
 
@@ -39,15 +39,22 @@ in
     };
 
     inputBackend = mkOption {
-      type = types.enum [ "xdotool" "ydotool" "dotool" "wtype" ];
-      default = "xdotool";
-      description = "Input simulation backend to use";
+      type = types.enum [ "xdotool" "ydotool" "dotool" "dotoolc" "wtype" ];
+      default = "dotool";
+      description = ''
+        Input simulation backend to use.
+        - dotool: Recommended for Wayland/COSMIC, uses uinput kernel module
+        - dotoolc: Same as dotool but uses the dotoold daemon
+        - wtype: Works on wlroots-based compositors (Sway, etc.)
+        - ydotool: Alternative uinput-based tool, requires daemon
+        - xdotool: X11 only
+      '';
     };
 
     modelPath = mkOption {
       type = types.str;
       default = "";
-      description = "Path to the VOSK language model";
+      description = "Path to the VOSK language model. Leave empty to use bundled English model.";
     };
 
     configScript = mkOption {
@@ -57,10 +64,10 @@ in
       example = ''
         # Custom nerd-dictation configuration
         import re
-        
-        def text_replace_function(text):
-            text = text.replace("new line", "\n")
-            text = text.replace("tab", "\t")
+
+        def nerd_dictation_process(text):
+            text = text.replace(" new line", "\n")
+            text = text.replace(" tab", "\t")
             return text
       '';
     };
@@ -91,17 +98,32 @@ in
   };
 
   config = mkIf cfg.enable {
+    # Enable uinput for dotool/ydotool support
+    hardware.uinput.enable = mkIf (cfg.inputBackend == "dotool" || cfg.inputBackend == "dotoolc" || cfg.inputBackend == "ydotool") true;
+    boot.kernelModules = mkIf (cfg.inputBackend == "dotool" || cfg.inputBackend == "dotoolc" || cfg.inputBackend == "ydotool") [ "uinput" ];
+
     users.users.${cfg.user} = mkIf (cfg.user == "nerd-dictation") {
       group = cfg.group;
       isSystemUser = true;
       description = "nerd-dictation service user";
       home = "/var/lib/nerd-dictation";
       createHome = true;
+      extraGroups = [ "audio" ]
+        ++ optional (cfg.inputBackend == "dotool" || cfg.inputBackend == "dotoolc" || cfg.inputBackend == "ydotool") "uinput"
+        ++ optional (cfg.inputBackend == "dotool" || cfg.inputBackend == "dotoolc" || cfg.inputBackend == "ydotool") "input";
     };
 
     users.groups.${cfg.group} = mkIf (cfg.group == "nerd-dictation") { };
 
-    environment.systemPackages = [ cfg.package ] ++ cfg.extraPackages;
+    environment.systemPackages = [ cfg.package ] ++ cfg.extraPackages ++ (with pkgs; [
+      (mkIf (cfg.audioBackend == "parec") pulseaudio)
+      (mkIf (cfg.audioBackend == "sox") sox)
+      (mkIf (cfg.audioBackend == "pw-cat") pipewire)
+      (mkIf (cfg.inputBackend == "xdotool") xdotool)
+      (mkIf (cfg.inputBackend == "ydotool") ydotool)
+      (mkIf (cfg.inputBackend == "dotool" || cfg.inputBackend == "dotoolc") dotool)
+      (mkIf (cfg.inputBackend == "wtype") wtype)
+    ]);
 
     systemd.services.nerd-dictation = {
       description = "nerd-dictation speech-to-text service";
@@ -113,17 +135,20 @@ in
         User = cfg.user;
         Group = cfg.group;
         WorkingDirectory = "/var/lib/nerd-dictation";
-        ExecStart = "${cfg.package}/bin/nerd-dictation begin";
+        ExecStart = "${cfg.package}/bin/nerd-dictation begin --simulate-input-tool=${lib.toUpper cfg.inputBackend}";
         ExecStop = "${cfg.package}/bin/nerd-dictation end";
         Restart = "on-failure";
         RestartSec = 5;
-        
+
         # Security settings
         NoNewPrivileges = true;
         PrivateTmp = true;
         ProtectSystem = "strict";
         ProtectHome = true;
         ReadWritePaths = [ "/var/lib/nerd-dictation" ];
+
+        # Allow access to uinput for dotool/ydotool
+        DeviceAllow = mkIf (cfg.inputBackend == "dotool" || cfg.inputBackend == "dotoolc" || cfg.inputBackend == "ydotool") [ "/dev/uinput rw" ];
       };
 
       environment = optionalAttrs (cfg.modelPath != "") {
@@ -137,19 +162,5 @@ in
         ''}
       '';
     };
-
-    # Ensure required audio/input packages are available
-    environment.systemPackages = with pkgs; [
-      (mkIf (cfg.audioBackend == "parec") pulseaudio)
-      (mkIf (cfg.audioBackend == "sox") sox)
-      (mkIf (cfg.audioBackend == "pw-cat") pipewire)
-      (mkIf (cfg.inputBackend == "xdotool") xdotool)
-      (mkIf (cfg.inputBackend == "ydotool") ydotool)
-      (mkIf (cfg.inputBackend == "dotool") dotool)
-      (mkIf (cfg.inputBackend == "wtype") wtype)
-    ];
-
-    # Add user to audio group for microphone access
-    users.users.${cfg.user}.extraGroups = [ "audio" ];
   };
 }
