@@ -13,6 +13,7 @@ A Nix flake for [nerd-dictation](https://github.com/ideasman42/nerd-dictation), 
 - US English model `vosk-model-small-en-us-0.15` bundled
 - **Automatic Wayland/X11 detection** for text input
 - **COSMIC desktop support** via dotool
+- **COSMIC panel applet** with status indicator and controls
 - **English configuration** with punctuation and symbols
 - Ready to use with no additional setup
 
@@ -144,6 +145,40 @@ users.users.youruser.extraGroups = [ "input" ];
 ## COSMIC Desktop Setup
 
 For COSMIC desktop, the package automatically uses `dotool` which works via the uinput kernel module.
+
+### COSMIC Panel Applet
+
+A panel applet is included that shows dictation status and provides controls:
+
+| Icon | Status |
+|------|--------|
+| Red microphone | Stopped |
+| Green microphone | Active |
+| Yellow microphone | Suspended |
+
+Click the icon to open a popup with Start/Stop/Suspend/Resume controls.
+
+#### Installation
+
+Add the applet to your system packages:
+
+```nix
+{ nerd-dictation, pkgs, ... }:
+
+{
+  environment.systemPackages = [
+    nerd-dictation.packages.${pkgs.system}.cosmic-applet
+  ];
+}
+```
+
+Then add **Nerd Dictation** to your COSMIC panel via **Settings > Desktop > Panel > Applets**.
+
+#### Run Without Installing
+
+```bash
+nix run github:digunix/nix-nerd-dictation#cosmic-applet
+```
 
 ### Required NixOS Configuration
 
