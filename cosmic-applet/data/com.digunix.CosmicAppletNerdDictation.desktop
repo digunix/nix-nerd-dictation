@@ -1,0 +1,13 @@
+[Desktop Entry]
+Name=Nerd Dictation
+Comment=Speech-to-text status and control
+Type=Application
+Exec=cosmic-applet-nerd-dictation
+Icon=microphone-symbolic
+Terminal=false
+Categories=COSMIC;Utility;
+Keywords=dictation;speech;microphone;voice;
+StartupNotify=false
+NoDisplay=true
+X-CosmicApplet=true
+X-CosmicHoverPopup=End

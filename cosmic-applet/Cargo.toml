@@ -1,0 +1,18 @@
+[package]
+name = "cosmic-applet-nerd-dictation"
+version = "0.1.0"
+edition = "2021"
+description = "COSMIC panel applet for nerd-dictation status and control"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/digunix/nix-nerd-dictation"
+
+[profile.release]
+opt-level = 3
+panic = "abort"
+lto = "thin"
+
+[dependencies]
+libcosmic = { git = "https://github.com/pop-os/libcosmic", default-features = false, features = ["applet", "tokio", "wayland"] }
+tokio = { version = "1", features = ["fs", "time"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"

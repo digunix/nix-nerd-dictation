@@ -11,14 +11,23 @@
       let
         pkgs = nixpkgs.legacyPackages.${system};
         nerd-dictation = pkgs.callPackage ./package.nix { };
+        cosmic-applet = pkgs.callPackage ./applet-package.nix {
+          inherit nerd-dictation;
+          inherit (pkgs) libcosmicAppHook;
+        };
       in
       {
         packages.default = nerd-dictation;
         packages.nerd-dictation = nerd-dictation;
+        packages.cosmic-applet = cosmic-applet;
 
         apps.default = flake-utils.lib.mkApp {
           drv = nerd-dictation;
           name = "nerd-dictation";
+        };
+        apps.cosmic-applet = flake-utils.lib.mkApp {
+          drv = cosmic-applet;
+          name = "cosmic-applet-nerd-dictation";
         };
       }
     ) // {

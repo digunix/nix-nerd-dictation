@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <!-- Microphone body -->
+  <rect x="5" y="1" width="6" height="9" rx="3" fill="currentColor"/>
+  <!-- Microphone stand arc -->
+  <path d="M3 7 C3 11 5 13 8 13 C11 13 13 11 13 7" stroke="currentColor" stroke-width="1.5" fill="none"/>
+  <!-- Microphone stand -->
+  <line x1="8" y1="13" x2="8" y2="15" stroke="currentColor" stroke-width="1.5"/>
+  <line x1="5" y1="15" x2="11" y2="15" stroke="currentColor" stroke-width="1.5"/>
+  <!-- Red status dot -->
+  <circle cx="13" cy="3" r="2.5" fill="#e74c3c"/>
+</svg>
