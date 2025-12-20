@@ -114,7 +114,7 @@ If you just want the package without the systemd service:
     homeConfigurations.youruser = home-manager.lib.homeManagerConfiguration {
       pkgs = nixpkgs.legacyPackages.x86_64-linux;
       modules = [
-        nerd-dictation.homeManagerModules.default
+        nerd-dictation.homeModules.default
         {
           programs.nerd-dictation = {
             enable = true;

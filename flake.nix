@@ -34,7 +34,7 @@
       nixosModules.default = import ./nixos-module.nix;
       nixosModules.nerd-dictation = import ./nixos-module.nix;
       
-      homeManagerModules.default = import ./home-manager-module.nix;
-      homeManagerModules.nerd-dictation = import ./home-manager-module.nix;
+      homeModules.default = import ./home-manager-module.nix;
+      homeModules.nerd-dictation = import ./home-manager-module.nix;
     };
 }
