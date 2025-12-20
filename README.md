@@ -134,13 +134,26 @@ If you just want the package without the systemd service:
 }
 ```
 
-**Note:** Home Manager users still need the NixOS-level configuration for uinput:
+### NixOS Requirements for Home Manager
+
+Home Manager users still need NixOS-level configuration for uinput:
 
 ```nix
 # In your NixOS configuration.nix
 hardware.uinput.enable = true;
 users.users.youruser.extraGroups = [ "input" ];
 ```
+
+**Important:** Do NOT enable both the NixOS service (`services.nerd-dictation.enable`) and the Home Manager service (`programs.nerd-dictation.enableSystemdService`) at the same time. This creates two competing services that will conflict.
+
+### Service Behavior
+
+The systemd services (both NixOS and Home Manager) are configured to automatically restart on failure. This means if you stop nerd-dictation manually while the service is enabled, it will restart automatically. To fully stop dictation:
+
+1. Stop the service: `systemctl --user stop nerd-dictation` (or without `--user` for NixOS service)
+2. Disable if needed: `systemctl --user disable nerd-dictation`
+
+Or use `nerd-dictation end` which gracefully stops the current session without triggering a restart.
 
 ## COSMIC Desktop Setup
 
@@ -158,49 +171,59 @@ A panel applet is included that shows dictation status and provides controls:
 
 Click the icon to open a popup with Start/Stop/Suspend/Resume controls.
 
-#### Installation
+### Recommended Configuration for Applet Users
 
-Add the applet to your system packages:
+If you're using the COSMIC applet for manual control, you likely don't want automatic systemd services running. Here's the recommended setup:
 
 ```nix
+# configuration.nix
 { nerd-dictation, pkgs, ... }:
 
 {
+  # Import the NixOS module for system dependencies only
+  imports = [ nerd-dictation.nixosModules.default ];
+
+  # DON'T enable the service - we want manual control via applet
+  services.nerd-dictation.enable = false;
+
+  # Install the applet and nerd-dictation command
   environment.systemPackages = [
+    nerd-dictation.packages.${pkgs.system}.default
     nerd-dictation.packages.${pkgs.system}.cosmic-applet
   ];
-}
-```
 
-Then add **Nerd Dictation** to your COSMIC panel via **Settings > Desktop > Panel > Applets**.
+  # Required system configuration for dotool
+  hardware.uinput.enable = true;
+  users.users.youruser.extraGroups = [ "audio" "input" ];
 
-#### Run Without Installing
-
-```bash
-nix run github:digunix/nix-nerd-dictation#cosmic-applet
-```
-
-### Required NixOS Configuration
-
-```nix
-{
-  # Enable COSMIC desktop
+  # COSMIC desktop
   services.desktopManager.cosmic.enable = true;
   services.displayManager.cosmic-greeter.enable = true;
 
-  # Enable uinput for dotool
-  hardware.uinput.enable = true;
-
-  # User permissions
-  users.users.youruser.extraGroups = [ "audio" "input" ];
-
-  # PipeWire for audio (COSMIC default)
+  # PipeWire for audio
   services.pipewire = {
     enable = true;
     alsa.enable = true;
     pulse.enable = true;
   };
 }
+```
+
+If using Home Manager alongside the applet, set `enableSystemdService = false`:
+
+```nix
+programs.nerd-dictation = {
+  enable = true;
+  enableSystemdService = false;  # Manual control via applet
+};
+```
+
+Then add **Nerd Dictation** to your COSMIC panel via **Settings > Desktop > Panel > Applets**.
+
+### Run Without Installing
+
+```bash
+nix run github:digunix/nix-nerd-dictation#cosmic-applet
 ```
 
 ### Keyboard Shortcuts
@@ -361,6 +384,30 @@ Check the model path:
 ```bash
 nerd-dictation begin --vosk-model-dir=/path/to/model
 ```
+
+### Service won't stay stopped
+
+If nerd-dictation keeps restarting after you stop it, a systemd service is configured to auto-restart. Either:
+
+1. **Disable the service:**
+   ```bash
+   # For Home Manager service
+   systemctl --user disable --now nerd-dictation
+
+   # For NixOS service
+   sudo systemctl disable --now nerd-dictation
+   ```
+
+2. **Or update your config** to disable the service if using the COSMIC applet for manual control:
+   ```nix
+   # NixOS
+   services.nerd-dictation.enable = false;
+
+   # Home Manager
+   programs.nerd-dictation.enableSystemdService = false;
+   ```
+
+See [Recommended Configuration for Applet Users](#recommended-configuration-for-applet-users) for the full setup.
 
 ## Custom Configuration
 
