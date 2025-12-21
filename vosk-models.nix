@@ -19,7 +19,7 @@ let
       name = "vosk-model-en-us-0.22";
       version = "0.22";
       url = "https://alphacephei.com/vosk/models/vosk-model-en-us-0.22.zip";
-      hash = "sha256-kakOhA7hEtDM6WY3oAnb8xKZil9WTA3xePpLIxr2+yM=";
+      hash = "sha256-R/moHrsDnbsL0xkXXDasOTwIk7eWwrYwPmTPWMJ7afY=";
       size = "1.8GB";
       description = "Large accurate model for servers/desktops - best general accuracy";
     };
@@ -37,7 +37,7 @@ let
       name = "vosk-model-en-us-0.42-gigaspeech";
       version = "0.42";
       url = "https://alphacephei.com/vosk/models/vosk-model-en-us-0.42-gigaspeech.zip";
-      hash = "sha256-75XKJKhO4e/2iNBkWmRJIjaaWtC2VJyOM1XuUJUcRDs=";
+      hash = "sha256-1nVcmbC8j7PFaWJpDcVel5Kr2SVQ3aC4iZ8X2lW/PzA=";
       size = "2.3GB";
       description = "Trained on Gigaspeech - optimized for podcasts/conversations";
     };
