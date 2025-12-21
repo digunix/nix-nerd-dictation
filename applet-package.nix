@@ -19,7 +19,7 @@ rustPlatform.buildRustPackage rec {
 
   src = ./cosmic-applet;
 
-  cargoHash = "sha256-0ERe94boYSHsUNTufYjkH9+V8gRygclCPion4v/MRSw=";
+  cargoHash = "sha256-2zF3Tq7mTrdNTnA3wLNTD5yKKXoiNjvTwg3qQnUha48=";
 
   nativeBuildInputs = [
     libcosmicAppHook
