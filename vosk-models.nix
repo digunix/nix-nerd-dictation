@@ -28,7 +28,7 @@ let
       name = "vosk-model-en-us-0.22-lgraph";
       version = "0.22";
       url = "https://alphacephei.com/vosk/models/vosk-model-en-us-0.22-lgraph.zip";
-      hash = "sha256-GVheflRwix9PnQjIVFl1mkNRduaYRNvZGhTZaobTibY=";
+      hash = "sha256-2YOLSqqCp1xKF/WsowDqyhKaqrKny/lRuvu1AOucQzQ=";
       size = "128MB";
       description = "Dynamic graph model - good balance of size and accuracy";
     };
