@@ -10,10 +10,11 @@ A Nix flake for [nerd-dictation](https://github.com/ideasman42/nerd-dictation), 
 ## Features
 
 - VOSK 0.3.45 included
-- US English model `vosk-model-small-en-us-0.15` bundled
+- **Multiple US English models** - choose from lightweight to high-accuracy
 - **Automatic Wayland/X11 detection** for text input
 - **COSMIC desktop support** via dotool
-- **COSMIC panel applet** with status indicator and controls
+- **COSMIC panel applet** with status indicator, controls, and model selector
+- **CLI model management** - list, switch, and configure models
 - **English configuration** with punctuation and symbols
 - Ready to use with no additional setup
 
@@ -21,6 +22,63 @@ A Nix flake for [nerd-dictation](https://github.com/ideasman42/nerd-dictation), 
 
 ```bash
 nix run github:digunix/nix-nerd-dictation
+```
+
+## VOSK Models
+
+This flake supports multiple English VOSK models. Choose based on your needs:
+
+| Model | Size | Description | Best For |
+|-------|------|-------------|----------|
+| `small-en-us` | 40MB | Lightweight model | Raspberry Pi, quick testing, basic use |
+| `en-us-0.22-lgraph` | 128MB | Good balance | General desktop use |
+| `en-us-0.22` | 1.8GB | High accuracy | Desktop/server with RAM to spare |
+| `en-us-0.42-gigaspeech` | 2.3GB | Optimized for speech | Podcasts, conversations, meetings |
+
+### Selecting Models
+
+In your NixOS or Home Manager configuration:
+
+```nix
+services.nerd-dictation = {  # or programs.nerd-dictation
+  enable = true;
+
+  # Install multiple models (downloaded during build)
+  models = [ "small-en-us" "en-us-0.22-lgraph" ];
+
+  # Set which model to use by default
+  defaultModel = "en-us-0.22-lgraph";
+};
+```
+
+### CLI Model Management
+
+List available models:
+```bash
+nerd-dictation models list
+```
+
+Show active model:
+```bash
+nerd-dictation models active
+```
+
+Switch to a different model:
+```bash
+nerd-dictation models set en-us-0.22-lgraph
+```
+
+The COSMIC applet also provides a model selector in its popup menu.
+
+### Installing Models Directly
+
+You can also install models as standalone packages:
+
+```nix
+environment.systemPackages = [
+  nerd-dictation.packages.${pkgs.system}.vosk-model-small-en-us
+  nerd-dictation.packages.${pkgs.system}.vosk-model-en-us-0-22-lgraph
+];
 ```
 
 ## NixOS Configuration
@@ -61,6 +119,10 @@ Add to your `configuration.nix`:
     enable = true;
     inputBackend = "dotool";  # Recommended for Wayland/COSMIC
     audioBackend = "parec";   # Works with PulseAudio/PipeWire
+
+    # Optional: install additional models
+    models = [ "small-en-us" "en-us-0.22-lgraph" ];
+    defaultModel = "small-en-us";
   };
 
   # Required for dotool to work (automatically enabled by the module)
@@ -121,6 +183,10 @@ If you just want the package without the systemd service:
             inputBackend = "dotool";
             enableSystemdService = true;
 
+            # Optional: choose which models to install
+            models = [ "small-en-us" ];
+            defaultModel = "small-en-us";
+
             # Key bindings for i3/sway (optional)
             keyBindings = {
               "ctrl+alt+d" = "nerd-dictation begin";
@@ -169,7 +235,10 @@ A panel applet is included that shows dictation status and provides controls:
 | Green microphone | Active |
 | Yellow microphone | Suspended |
 
-Click the icon to open a popup with Start/Stop/Suspend/Resume controls.
+Click the icon to open a popup with:
+- **Status display** - Current dictation state
+- **Model selector** - Switch between installed models
+- **Control buttons** - Start/Stop/Suspend/Resume based on current state
 
 ### Recommended Configuration for Applet Users
 
@@ -185,6 +254,9 @@ If you're using the COSMIC applet for manual control, you likely don't want auto
 
   # DON'T enable the service - we want manual control via applet
   services.nerd-dictation.enable = false;
+
+  # Install models (choose which ones you want)
+  services.nerd-dictation.models = [ "small-en-us" "en-us-0.22-lgraph" ];
 
   # Install the applet and nerd-dictation command
   environment.systemPackages = [
@@ -260,9 +332,11 @@ Configure in **COSMIC Settings > Keyboard > Keyboard Shortcuts**:
 
 | Option | Default | Description |
 |--------|---------|-------------|
+| `models` | `["small-en-us"]` | List of VOSK models to install |
+| `defaultModel` | `"small-en-us"` | Model to use by default |
 | `inputBackend` | `dotool` | Input simulation tool |
 | `audioBackend` | `parec` | Audio recording tool |
-| `modelPath` | (bundled) | Custom VOSK model path |
+| `modelPath` | (auto) | Custom VOSK model path override |
 | `configScript` | (bundled) | Custom Python config |
 | `timeout` | 1000 | Recognition timeout (ms) |
 | `idleTime` | 500 | Idle time before stop (ms) |

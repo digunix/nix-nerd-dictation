@@ -5,9 +5,19 @@ with lib;
 let
   cfg = config.services.nerd-dictation;
 
-  nerd-dictation = pkgs.callPackage ./package.nix { };
+  voskModels = import ./vosk-models.nix {
+    inherit lib;
+    inherit (pkgs) stdenv fetchurl unzip;
+  };
+
+  nerd-dictation = pkgs.callPackage ./package.nix {
+    defaultModel = cfg.defaultModel;
+  };
 
   configFile = pkgs.writeText "nerd-dictation.py" cfg.configScript;
+
+  # Build the list of model packages based on user selection
+  selectedModelPackages = map (m: voskModels.packages.${m}) cfg.models;
 in
 
 {
@@ -18,6 +28,30 @@ in
       type = types.package;
       default = nerd-dictation;
       description = "The nerd-dictation package to use";
+    };
+
+    models = mkOption {
+      type = types.listOf (types.enum voskModels.availableModels);
+      default = [ "small-en-us" ];
+      example = [ "small-en-us" "en-us-0.22" ];
+      description = ''
+        List of VOSK models to install. Available models:
+        - small-en-us (40MB) - Lightweight model for basic use
+        - en-us-0.22 (1.8GB) - High accuracy model for desktops/servers
+        - en-us-0.22-lgraph (128MB) - Good balance of size and accuracy
+        - en-us-0.42-gigaspeech (2.3GB) - Optimized for podcasts/conversations
+
+        Note: Larger models will be downloaded during system build.
+      '';
+    };
+
+    defaultModel = mkOption {
+      type = types.enum voskModels.availableModels;
+      default = "small-en-us";
+      description = ''
+        Default model to use when none is explicitly configured.
+        Must be one of the models listed in the 'models' option.
+      '';
     };
 
     user = mkOption {
@@ -54,7 +88,7 @@ in
     modelPath = mkOption {
       type = types.str;
       default = "";
-      description = "Path to the VOSK language model. Leave empty to use bundled English model.";
+      description = "Path to the VOSK language model. Leave empty to use the configured default model.";
     };
 
     configScript = mkOption {
@@ -98,6 +132,14 @@ in
   };
 
   config = mkIf cfg.enable {
+    # Validate that defaultModel is in the models list
+    assertions = [
+      {
+        assertion = builtins.elem cfg.defaultModel cfg.models;
+        message = "services.nerd-dictation.defaultModel must be one of the models in services.nerd-dictation.models";
+      }
+    ];
+
     # Enable uinput for dotool/ydotool support
     hardware.uinput.enable = mkIf (cfg.inputBackend == "dotool" || cfg.inputBackend == "dotoolc" || cfg.inputBackend == "ydotool") true;
     boot.kernelModules = mkIf (cfg.inputBackend == "dotool" || cfg.inputBackend == "dotoolc" || cfg.inputBackend == "ydotool") [ "uinput" ];
@@ -115,15 +157,19 @@ in
 
     users.groups.${cfg.group} = mkIf (cfg.group == "nerd-dictation") { };
 
-    environment.systemPackages = [ cfg.package ] ++ cfg.extraPackages ++ (with pkgs; [
-      (mkIf (cfg.audioBackend == "parec") pulseaudio)
-      (mkIf (cfg.audioBackend == "sox") sox)
-      (mkIf (cfg.audioBackend == "pw-cat") pipewire)
-      (mkIf (cfg.inputBackend == "xdotool") xdotool)
-      (mkIf (cfg.inputBackend == "ydotool") ydotool)
-      (mkIf (cfg.inputBackend == "dotool" || cfg.inputBackend == "dotoolc") dotool)
-      (mkIf (cfg.inputBackend == "wtype") wtype)
-    ]);
+    # Install nerd-dictation, selected models, and backend tools
+    environment.systemPackages = [ cfg.package ]
+      ++ selectedModelPackages
+      ++ cfg.extraPackages
+      ++ (with pkgs; [
+        (mkIf (cfg.audioBackend == "parec") pulseaudio)
+        (mkIf (cfg.audioBackend == "sox") sox)
+        (mkIf (cfg.audioBackend == "pw-cat") pipewire)
+        (mkIf (cfg.inputBackend == "xdotool") xdotool)
+        (mkIf (cfg.inputBackend == "ydotool") ydotool)
+        (mkIf (cfg.inputBackend == "dotool" || cfg.inputBackend == "dotoolc") dotool)
+        (mkIf (cfg.inputBackend == "wtype") wtype)
+      ]);
 
     systemd.services.nerd-dictation = {
       description = "nerd-dictation speech-to-text service";

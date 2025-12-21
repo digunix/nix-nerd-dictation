@@ -7,7 +7,7 @@ use cosmic::widget::{self, button, container, divider, icon, text, Column};
 use cosmic::{Application, Element};
 use std::process::Command;
 
-use crate::state::{detect_state, DictationState};
+use crate::state::{detect_state, discover_models, get_active_model, set_active_model, DictationState, ModelInfo};
 
 const APP_ID: &str = "com.digunix.CosmicAppletNerdDictation";
 const POLL_INTERVAL_MS: u64 = 1000;
@@ -21,6 +21,8 @@ pub struct Window {
     core: Core,
     popup: Option<window::Id>,
     state: DictationState,
+    models: Vec<ModelInfo>,
+    active_model: String,
 }
 
 #[derive(Debug, Clone)]
@@ -28,6 +30,10 @@ pub enum Message {
     TogglePopup,
     PopupClosed(window::Id),
     StateUpdated(DictationState),
+    ModelsDiscovered(Vec<ModelInfo>),
+    ActiveModelLoaded(String),
+    SelectModel(String),
+    ModelSet(Result<(), String>),
     Tick(Instant),
     Start,
     Stop,
@@ -69,13 +75,24 @@ impl Application for Window {
             core,
             popup: None,
             state: DictationState::default(),
+            models: Vec::new(),
+            active_model: String::from("small-en-us"),
         };
 
-        let task = cosmic::Task::perform(detect_state(), |s| {
+        // Initialize state and models
+        let state_task = cosmic::Task::perform(detect_state(), |s| {
             cosmic::Action::App(Message::StateUpdated(s))
         });
 
-        (app, task)
+        let models_task = cosmic::Task::perform(discover_models(), |models| {
+            cosmic::Action::App(Message::ModelsDiscovered(models))
+        });
+
+        let active_task = cosmic::Task::perform(get_active_model(), |model| {
+            cosmic::Action::App(Message::ActiveModelLoaded(model))
+        });
+
+        (app, cosmic::Task::batch([state_task, models_task, active_task]))
     }
 
     fn update(&mut self, message: Message) -> app::Task<Message> {
@@ -92,20 +109,27 @@ impl Application for Window {
                     let mut popup_settings = self.core.applet.get_popup_settings(
                         self.core.main_window_id().unwrap(),
                         new_id,
-                        Some((200, 150)),
+                        Some((250, 200)),
                         None,
                         None,
                     );
 
                     popup_settings.positioner.size_limits = Limits::NONE
-                        .min_width(180.0)
-                        .min_height(100.0)
-                        .max_height(200.0)
-                        .max_width(250.0);
+                        .min_width(200.0)
+                        .min_height(120.0)
+                        .max_height(350.0)
+                        .max_width(300.0);
 
-                    return cosmic::iced::platform_specific::shell::commands::popup::get_popup(
+                    // Refresh models when popup opens
+                    let models_task = cosmic::Task::perform(discover_models(), |models| {
+                        cosmic::Action::App(Message::ModelsDiscovered(models))
+                    });
+
+                    let popup_task = cosmic::iced::platform_specific::shell::commands::popup::get_popup(
                         popup_settings,
                     );
+
+                    return cosmic::Task::batch([popup_task, models_task]);
                 }
             }
 
@@ -117,6 +141,31 @@ impl Application for Window {
 
             Message::StateUpdated(new_state) => {
                 self.state = new_state;
+            }
+
+            Message::ModelsDiscovered(models) => {
+                self.models = models;
+            }
+
+            Message::ActiveModelLoaded(model) => {
+                self.active_model = model;
+            }
+
+            Message::SelectModel(model) => {
+                let model_clone = model.clone();
+                self.active_model = model;
+                return cosmic::Task::perform(
+                    async move {
+                        set_active_model(&model_clone)
+                            .await
+                            .map_err(|e| e.to_string())
+                    },
+                    |result| cosmic::Action::App(Message::ModelSet(result)),
+                );
+            }
+
+            Message::ModelSet(_result) => {
+                // Could show notification on error, but for now just ignore
             }
 
             Message::Tick(_) => {
@@ -196,10 +245,42 @@ impl Application for Window {
         let mut content: Vec<Element<Message>> = vec![
             status_text.into(),
             widget::vertical_space().height(8).into(),
-            divider::horizontal::default().into(),
-            widget::vertical_space().height(8).into(),
         ];
 
+        // Model selector section
+        if !self.models.is_empty() {
+            content.push(text::caption("Model:").into());
+            content.push(widget::vertical_space().height(4).into());
+
+            for model in &self.models {
+                let is_active = model.key == self.active_model;
+                let label = format!(
+                    "{} {} ({})",
+                    if is_active { "●" } else { "○" },
+                    model.key,
+                    model.size
+                );
+
+                let model_key = model.key.clone();
+                let btn = if is_active {
+                    button::text(label)
+                        .width(cosmic::iced::Length::Fill)
+                } else {
+                    button::text(label)
+                        .on_press(Message::SelectModel(model_key))
+                        .width(cosmic::iced::Length::Fill)
+                };
+                content.push(btn.into());
+                content.push(widget::vertical_space().height(2).into());
+            }
+
+            content.push(widget::vertical_space().height(4).into());
+        }
+
+        content.push(divider::horizontal::default().into());
+        content.push(widget::vertical_space().height(8).into());
+
+        // Control buttons based on state
         match self.state {
             DictationState::Stopped => {
                 content.push(
@@ -246,8 +327,8 @@ impl Application for Window {
         self.core
             .applet
             .popup_container(column)
-            .max_height(200.)
-            .max_width(250.)
+            .max_height(350.)
+            .max_width(300.)
             .into()
     }
 
