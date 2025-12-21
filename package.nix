@@ -3,6 +3,14 @@
 }:
 
 let
+  # Import VOSK models
+  voskModels = import ./vosk-models.nix {
+    inherit lib stdenv fetchurl unzip;
+  };
+
+  # Get the bundled default model package
+  bundledModel = voskModels.packages.${defaultModel};
+
   vosk = python3Packages.buildPythonPackage rec {
     pname = "vosk";
     version = "0.3.45";
@@ -94,6 +102,9 @@ stdenv.mkDerivation rec {
                 echo "$HOME/.nix-profile/share/vosk-models"
             elif [ -d "/nix/var/nix/profiles/default/share/vosk-models" ]; then
                 echo "/nix/var/nix/profiles/default/share/vosk-models"
+            elif [ -d "@out@/share/vosk-models" ]; then
+                # Fallback to bundled model
+                echo "@out@/share/vosk-models"
             else
                 echo ""
             fi
@@ -303,12 +314,16 @@ stdenv.mkDerivation rec {
 
       mkdir -p $out/bin
       mkdir -p $out/share/nerd-dictation
+      mkdir -p $out/share/vosk-models
 
       # Copy all source files
       cp -r . $out/share/nerd-dictation/
 
       # Copy default English configuration
       cp ${./default-config.py} $out/share/nerd-dictation/default-config.py
+
+      # Copy bundled model for standalone use (nix run)
+      cp -r ${bundledModel}/share/vosk-models/* $out/share/vosk-models/
 
       # Create wrapper script with model path and dependencies
       cat > $out/bin/nerd-dictation << 'WRAPPER_EOF'
