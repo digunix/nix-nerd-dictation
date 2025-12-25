@@ -98,6 +98,8 @@ stdenv.mkDerivation rec {
                 echo "$VOSK_MODELS_PATH"
             elif [ -d "/run/current-system/sw/share/vosk-models" ]; then
                 echo "/run/current-system/sw/share/vosk-models"
+            elif [ -d "$HOME/.local/state/nix/profiles/home-manager/home-path/share/vosk-models" ]; then
+                echo "$HOME/.local/state/nix/profiles/home-manager/home-path/share/vosk-models"
             elif [ -d "$HOME/.nix-profile/share/vosk-models" ]; then
                 echo "$HOME/.nix-profile/share/vosk-models"
             elif [ -d "/nix/var/nix/profiles/default/share/vosk-models" ]; then
