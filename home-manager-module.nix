@@ -16,9 +16,6 @@ let
 
   configFile = pkgs.writeText "nerd-dictation.py" cfg.configScript;
 
-  # Check if using uinput-based backend
-  usesUinput = cfg.inputBackend == "dotool" || cfg.inputBackend == "dotoolc" || cfg.inputBackend == "ydotool";
-
   # Build the list of model packages based on user selection
   selectedModelPackages = map (m: voskModels.packages.${m}) cfg.models;
 in
@@ -250,12 +247,5 @@ in
     xsession.windowManager.i3.config.keybindings = mkIf (config.xsession.windowManager.i3.enable && cfg.keyBindings != {})
       (mapAttrs (key: cmd: "exec ${cmd}") cfg.keyBindings);
 
-    # Warning for uinput-based backends
-    warnings = optional usesUinput ''
-      nerd-dictation: You are using ${cfg.inputBackend} which requires uinput.
-      Ensure your NixOS configuration includes:
-        hardware.uinput.enable = true;
-        users.users.${config.home.username}.extraGroups = [ "input" ];
-    '';
   };
 }
